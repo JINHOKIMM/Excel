@@ -1,5 +1,8 @@
 package com.example.excel.service;
 
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.apache.poi.ss.usermodel.Row;
@@ -49,47 +52,78 @@ public class ExcelService {
     public List<ExcelEntity> searchByTitleContaining(String keyword) {
         return bbsRepository.findByTitleContaining(keyword);
     }
+    
+    
+    public void excelDownload(HttpServletResponse response) {
+        List<ExcelEntity> bbsList = bbsRepository.findAll();
+        List<String> bbsListColNm = bbsRepository.getBbsListColNm();
 
-	public void excelDownload(HttpServletResponse response) {
-		
-		List<ExcelEntity> bbsList = bbsRepository.findAll();
-		List<String> bbsListColNm = bbsRepository.getBbsListColNm();
-		
-		logger.info("bbsList : {}",bbsList);
-		logger.info("bbsListColNm : {}",bbsListColNm);
-				
-        XSSFWorkbook wb = new XSSFWorkbook();
-        
-        XSSFSheet sheet =  wb.createSheet();
-        
-        int rowCnt = 0;
-        
-        Row headerRow = sheet.createRow(rowCnt++);
-        for (int i = 0; i < bbsListColNm.size(); i++) {
-            headerRow.createCell(i).setCellValue(bbsListColNm.get(i));
+        logger.info("bbsList : {}", bbsList);
+        logger.info("bbsListColNm : {}", bbsListColNm);
+
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            XSSFSheet sheet = wb.createSheet("BBS Data");
+            int rowCnt = 0;
+
+            // 헤더 작성
+            Row headerRow = sheet.createRow(rowCnt++);
+            for (int i = 0; i < bbsListColNm.size(); i++) {
+                headerRow.createCell(i).setCellValue(bbsListColNm.get(i));
+            }
+
+            // 본문 작성
+            for (ExcelEntity ent : bbsList) {
+                Row bodyRow = sheet.createRow(rowCnt++);
+                for (int i = 0; i < bbsListColNm.size(); i++) {
+                    String colName = bbsListColNm.get(i);
+                    Object value = getValueByFieldName(ent, colName);
+                    bodyRow.createCell(i).setCellValue(value != null ? value.toString() : "N/A");
+                }
+            }
+
+            // 응답 설정
+            String fileName = "bbs_data_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
+
+            wb.write(response.getOutputStream());
+        } catch (Exception e) {
+            logger.error("Error during Excel download", e);
+            throw new RuntimeException("Excel download failed", e);
         }
-        
-        for (ExcelEntity ent : bbsList) {
-			Row bodyRow = sheet.createRow(rowCnt++);
-			bodyRow.createCell(0).setCellValue(ent.getId());
-			bodyRow.createCell(1).setCellValue(ent.getTitle());
-			bodyRow.createCell(2).setCellValue(ent.getContent());
-			bodyRow.createCell(3).setCellValue(ent.getAuthor());
-			bodyRow.createCell(4).setCellValue(ent.getCreatedAt().toString()); // or format it
-			bodyRow.createCell(5).setCellValue(ent.getUpdatedAt().toString());
-		}
-        
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        response.setHeader("Content-Disposition", "attachment;filename=test.xlsx");
-        
-        try {
-			wb.write(response.getOutputStream());
-			wb.close();
-		} catch (Exception e) {
-			logger.error("Error during Excel download", e);
-		    throw new RuntimeException("Excel download failed");
-		}
+    }
 
-		
-	}
+    private Object getValueByFieldName(ExcelEntity entity, String fieldName) {
+        try {
+            // 스네이크 케이스를 카멜 케이스로 변환
+            String camelCaseField = snakeToCamel(fieldName);
+            Field field = ExcelEntity.class.getDeclaredField(camelCaseField);
+            field.setAccessible(true);
+            Object value = field.get(entity);
+
+            // 날짜 형식 처리
+            if (value instanceof LocalDateTime) {
+                return ((LocalDateTime) value).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            }
+            return value;
+        } catch (Exception e) {
+            logger.error("Error accessing field: {}", fieldName, e);
+            return "N/A";
+        }
+    }
+    
+    private String snakeToCamel(String fieldName) {
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = false;
+        for (char c : fieldName.toCharArray()) {
+            if (c == '_') {
+                capitalizeNext = true;
+            } else {
+                result.append(capitalizeNext ? Character.toUpperCase(c) : c);
+                capitalizeNext = false;
+            }
+        }
+        return result.toString();
+    }
+
 }
