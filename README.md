@@ -19,8 +19,8 @@
 
   <br><br>
 
-## 1. 메서드를 여러 개로 분할 ##
 ## 🛠️구현기능 ##
+**1. 메서드를 여러 개로 분할**
 <hr>
 <table>
   <tr>
@@ -48,7 +48,7 @@
 
 <br><br>
 
-## 2. 가독성을 위한 최소한의 메서드 분할 ##
+**2. 가독성을 위한 최소한의 메서드 분할**
 <table>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/4c18df64-f9ea-4285-bd39-68aeb5c3911c" alt="image"></td>
